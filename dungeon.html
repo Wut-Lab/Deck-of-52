@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dungeon of 52</title>
+<style>
+:root{--bg:#18261d;--ink:#f3f1ea;--dim:rgba(243,241,234,.7);--panel:rgba(16,24,19,.84);--line:rgba(255,255,255,.16);--accent:#9b1b27;--hp:#c8102e;--xp:#e2b23a;--good:#7fcf8f}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,sans-serif}
+#view{position:fixed;inset:0;touch-action:none}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(4px)}
+h1{margin:0;font:600 20px Georgia,serif;letter-spacing:.02em}
+h2{margin:0 0 8px;font:600 18px Georgia,serif}
+#stats{position:fixed;top:12px;left:16px;width:min(280px,calc(100% - 32px));padding:10px 12px}
+#stats .who{display:flex;justify-content:space-between;align-items:baseline;margin:2px 0 8px;color:var(--dim);font-size:13px}
+.bar{position:relative;height:16px;border-radius:8px;background:rgba(255,255,255,.1);overflow:hidden;margin:3px 0}
+.bar i{position:absolute;inset:0 auto 0 0;border-radius:8px;transition:width .4s}
+.bar span{position:relative;display:block;text-align:center;font-size:11px;line-height:16px;font-weight:600;text-shadow:0 1px 2px #000}
+#hpbar i{background:var(--hp)}#xpbar i{background:var(--xp)}
+#gear{margin-top:8px;font-size:13px;color:var(--dim)}#gear b{color:var(--ink);font-weight:600}
+#log{position:fixed;top:12px;right:16px;width:min(340px,calc(100% - 32px));padding:8px 12px;font-size:13px;color:var(--dim)}
+#log p{margin:2px 0}#log p:last-child{color:var(--ink)}
+#act{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);width:min(560px,calc(100% - 32px));padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+#card-info{min-height:20px}#card-info b{font-family:Georgia,serif;font-size:16px}#card-info small{display:block;color:var(--dim)}
+#choices{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);cursor:pointer}
+button small{opacity:.75;margin-left:6px}
+button.pri{background:var(--accent);border-color:transparent}
+button:disabled{opacity:.4;cursor:default}
+.spacer{flex:1}
+#overlay{position:fixed;inset:0;display:grid;place-items:center;background:rgba(8,14,10,.6);padding:16px;overflow:auto}
+#overlay[hidden]{display:none}
+#dialog{max-width:620px;width:100%;padding:18px 18px 16px}
+#dialog p{margin:0 0 12px;color:var(--dim)}
+#classes{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:12px 0}
+#classes button{text-align:left;padding:12px;display:flex;flex-direction:column;gap:4px}
+#classes button b{font:600 17px Georgia,serif}
+#classes button span{font-size:13px;color:var(--dim)}
+#classes button em{font-size:12px;font-style:normal;color:var(--xp)}
+#rules{font-size:14px;color:var(--dim);margin:0;padding-left:18px}#rules li{margin:3px 0}#rules b{color:var(--ink)}
+a{color:var(--xp)}
+@media (max-width:700px){
+ #stats{top:8px;left:8px;width:calc(100% - 16px);padding:6px 10px}h1{display:none}#stats .who{margin:0 0 2px;font-size:12px}
+ .bar{height:13px;margin:2px 0}.bar span{font-size:10px;line-height:13px}#gear{margin-top:3px;font-size:12px}
+ #log{left:8px;right:8px;width:auto;top:calc(12px + var(--stats-h,90px));padding:4px 10px;font-size:12px}#log p:not(:last-child){display:none}
+ #act{bottom:8px;width:calc(100% - 16px);padding:8px 10px;gap:6px}button{padding:7px 11px}
+ #act.idle #card-info,#free{display:none}
+}
+</style>
+</head>
+<body>
+<div id="view"></div>
+<section id="stats" class="panel">
+ <h1>Dungeon of 52</h1>
+ <div class="who"><span id="hero">Knight</span><span id="lvl">Level 1</span></div>
+ <div id="hpbar" class="bar"><i></i><span></span></div>
+ <div id="xpbar" class="bar"><i></i><span></span></div>
+ <div id="gear"></div>
+</section>
+<section id="log" class="panel"></section>
+<section id="act" class="panel">
+ <div id="card-info"></div>
+ <div id="choices"></div>
+ <div id="choices2" style="display:flex;gap:8px;flex-wrap:wrap"><button id="flee">Flee this room</button><span class="spacer"></span><a id="free" href="index.html" style="align-self:center;font-size:13px">Free table</a><button id="help">Rules</button><button id="restart">New game</button></div>
+</section>
+<div id="overlay"><div id="dialog" class="panel"></div></div>
+
+<!-- 1. the card artwork, the shared 3D table and the game rules -->
+<script src="cardArt.js"></script>
+<script src="table.js"></script>
+<script src="rules.js"></script>
+<!-- 2. where to download three.js, the 3D library -->
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+<!-- 3. the game on the table -->
+<script type="module">
+import * as THREE from "three";
+import {OrbitControls} from "three/addons/controls/OrbitControls.js";
+import {RoomEnvironment} from "three/addons/environments/RoomEnvironment.js";
+const {cards,camera,CT,place,move,frame,onTap}=CardTable(THREE,{OrbitControls,RoomEnvironment});
+const {Game,info,label,CLASSES}=Dungeon;
+const $=id=>document.getElementById(id);
+const byName=Object.fromEntries(cards.map(c=>[c.userData.name,c]));
+
+/* ---------- where things sit on the table (x across, z toward the player) ----------
+   wide screens, two rows: the dungeon deck, the four cards of the room and the discard pile at the back;
+   your weapon (with the monsters it has slain piled on it) and your kept relics in front.
+   tall screens (phones): deck, relics and discard on top, the room as a 2 x 2 block, your weapon below. */
+const portrait=()=>innerWidth<innerHeight*.9;
+let L;
+function setLayout(){
+  L=portrait()?{room:[[-1.45,-1.6],[1.45,-1.6],[-1.45,2.2],[1.45,2.2]],deck:[-3.6,-5.6],discard:[3.6,-5.6],
+      weapon:[-3.2,6.1],relic:[[-.55,-5.6],[.55,-5.4]],fan:.55,view:[10,22,.6]}
+    :{room:[[-4.2,-2.3],[-1.4,-2.3],[1.4,-2.3],[4.2,-2.3]],deck:[-8,-2.3],discard:[8,-2.3],
+      weapon:[-6.6,2.1],relic:[[4.2,2.1],[7,2.1]],fan:.7,view:[20,10.5,0]};
+}
+setLayout();
+const stackY=i=>CT/2+i*CT*1.02;
+
+// work out where every card should be from the game state, then glide the ones that need to move
+function targets(g){
+  const t={};
+  g.deck.forEach((c,i)=>t[c]=[L.deck[0],stackY(i),L.deck[1],false]);
+  g.discard.forEach((c,i)=>t[c]=[L.discard[0],stackY(i),L.discard[1],false]);
+  g.room.forEach((c,i)=>{if(c)t[c]=[L.room[i][0],CT/2,L.room[i][1],true]});
+  if(g.weapon)t[g.weapon.card]=[L.weapon[0],CT/2,L.weapon[1],true];
+  g.slain.forEach((c,i)=>t[c]=[L.weapon[0]+L.fan*(i+1),stackY(i+1)+.004,L.weapon[1]+.12*(i+1),true]); // fanned to the right so each value shows
+  g.relics.forEach((c,i)=>t[c]=[L.relic[i][0],stackY(i),L.relic[i][1],true]);
+  return t;
+}
+async function layout(instant){
+  const t=targets(game),moves=[];let k=0;
+  for(const[name,[x,y,z,up]]of Object.entries(t)){
+    const c=byName[name],key=[x,y,z,up].join();
+    if(c.userData.spot===key&&!(selected===c))continue;
+    c.userData.spot=key;
+    if(instant)place(c,x,y,z,0,up);
+    else moves.push(move(c,x,y,z,0,up,{dur:.5,delay:(k++)*.06,hop:.5}));
+  }
+  await Promise.all(moves);
+}
+
+/* ---------- the heads-up display ---------- */
+function hud(){
+  const g=game;if(!g)return;
+  $("hero").textContent=g.hero.name;$("lvl").textContent=`Level ${g.level}`;
+  $("hpbar").querySelector("i").style.width=`${100*g.hp/g.maxHp}%`;
+  $("hpbar").querySelector("span").textContent=`Health ${g.hp} / ${g.maxHp}`;
+  const lo=Dungeon.LEVELS[g.level-1],hi=g.nextLevel;
+  $("xpbar").querySelector("i").style.width=hi==null?"100%":`${100*(g.xp-lo)/(hi-lo)}%`;
+  $("xpbar").querySelector("span").textContent=hi==null?`XP ${g.xp} · top level`:`XP ${g.xp} / ${hi}`;
+  const w=g.weapon;
+  $("gear").innerHTML=
+    (w?`Weapon: <b>${w.name} (${w.value})</b>${w.neverDull?" · never dulls":w.limit!=null?` · works on monsters up to ${w.limit}`:" · sharp"}`:"Weapon: <b>bare hands</b>")+
+    (g.relics.length?`<br>Kept: <b>${g.relics.map(r=>({KH:"Holy Shield",AH:"Phoenix Feather"})[r]).join(", ")}</b>`:"")+
+    `<br>Cards left in the dungeon: <b>${g.cardsLeft}</b>`;
+  $("log").innerHTML=g.log.slice(-5).map(t=>`<p>${t}</p>`).join("");
+  $("flee").disabled=busy||!g.canFlee();
+  $("flee").title=g.canFlee()?"Send all four cards to the bottom of the deck":g.done?"You can only flee before touching a room":"You can't flee two rooms in a row";
+  showChoices();
+  document.documentElement.style.setProperty("--stats-h",$("stats").offsetHeight+"px");
+}
+function describe(n){
+  const i=info(n);
+  if(i.kind==="monster")return`<b>${i.name.replace(/^the /,"The ")}</b> · ${label(n)} · ${i.boss?"Boss":"Monster"} of strength ${i.value}`;
+  if(i.kind==="weapon")return`<b>${i.name}</b> · ${label(n)} · Weapon of strength ${i.value}`;
+  if(i.kind==="potion")return`<b>${i.name}</b> · ${label(n)} · Heals ${i.value}`;
+  return`<b>${i.name.replace(/^the /,"The ")}</b> · ${label(n)} · Ally<small>${i.text}</small>`;
+}
+function showChoices(){
+  const box=$("choices");box.innerHTML="";$("act").classList.toggle("idle",!selected||!!game.over);
+  if(game.over){$("card-info").innerHTML=game.over==="won"?"<b>Victory!</b>":"<b>You have fallen.</b>";return}
+  if(!selected){$("card-info").innerHTML=`<small>Tap a card in the room to see what it is. Deal with 3 of the 4, and the last one waits for the next room.</small>`;return}
+  const n=selected.userData.name,opts=game.options(n),note=game.weaponNote(n);
+  $("card-info").innerHTML=describe(n)+(note?`<small>${note}</small>`:"");
+  for(const o of opts){
+    const b=document.createElement("button");b.className=o===opts[0]?"pri":"";b.disabled=busy;
+    b.innerHTML=o.label+(o.detail?`<small>${o.detail}</small>`:"");
+    b.onclick=()=>choose(n,o.id);box.append(b);
+  }
+}
+
+/* ---------- playing ---------- */
+let game,selected=null,busy=false;
+async function busyWhile(f){busy=true;hud();try{await f()}finally{busy=false;hud()}}
+function select(c){
+  const prev=selected;selected=c;
+  if(prev&&prev!==c){const[x,y,z,up]=targets(game)[prev.userData.name]||[];if(x!=null)move(prev,x,y,z,0,up,{dur:.25,hop:0})}
+  if(c){const[x,,z]=targets(game)[c.userData.name];move(c,x,.5,z+.5,0,true,{dur:.25,hop:0})} // lift it toward you
+  hud();
+}
+onTap(c=>{
+  if(busy||!game||game.over)return;
+  if(c&&game.room.includes(c.userData.name))return select(c===selected?null:c);
+  select(null);
+  if(c&&c.userData.faceUp){$("card-info").innerHTML=describe(c.userData.name)}  // tapping your weapon or a relic just says what it is
+});
+async function choose(name,opt){
+  await busyWhile(async()=>{
+    selected=null;byName[name].userData.spot=null;
+    game.act(name,opt);hud();
+    await layout();
+  });
+  if(game.over)finish();
+}
+$("flee").onclick=()=>busyWhile(async()=>{if(!game.canFlee())return;selected=null;game.flee();hud();await layout()});
+$("restart").onclick=()=>chooseClass();
+$("help").onclick=()=>showRules();
+
+/* ---------- start, end and help screens ---------- */
+const best=cls=>{try{return+localStorage.getItem("d52-best-"+cls)||null}catch{return null}};
+const saveBest=(cls,s)=>{try{if(best(cls)==null||s>best(cls))localStorage.setItem("d52-best-"+cls,s)}catch{}};
+function dialog(html){$("dialog").innerHTML=html;$("overlay").hidden=false}
+function closeDialog(){$("overlay").hidden=true}
+const RULES=`<ul id="rules">
+ <li>The whole deck is the dungeon. Each <b>room</b> is four cards. Deal with any <b>three</b>; the fourth stays for the next room.</li>
+ <li><b>♠ ♣ Monsters.</b> 2–10 are worth their number. Jacks 11, Queens 12, Kings 13 and Aces 14 are <b>bosses</b>. Barehanded, you take their full strength as damage.</li>
+ <li><b>♦ Weapons.</b> A weapon takes its strength off each fight. But every kill dulls it: afterwards it only works on monsters <b>no stronger</b> than the last one it killed.</li>
+ <li><b>♥ Potions</b> heal their number, but only the first potion in each room works.</li>
+ <li><b>Red Jacks, Queens, Kings and Aces</b> are allies: a healer, a blacksmith, a holy shield, a phoenix feather and more.</li>
+ <li><b>Flee</b> an untouched room to send its cards to the bottom of the deck, but not two rooms in a row.</li>
+ <li>Monsters give <b>XP</b>; each level adds 2 maximum health. Clear the deck to win.</li>
+</ul>`;
+function chooseClass(note=""){
+  select(null);
+  dialog(`${note}<h2>Choose your hero</h2><p>Fight your way through all 52 cards.</p>
+  <div id="classes">${Object.entries(CLASSES).map(([k,c])=>`<button data-cls="${k}"><b>${c.name}</b><span>${c.text}</span>${best(k)!=null?`<em>Best score: ${best(k)}</em>`:""}</button>`).join("")}</div>
+  <details><summary>How to play</summary>${RULES}</details>`);
+  for(const b of document.querySelectorAll("#classes button"))b.onclick=()=>{closeDialog();start(b.dataset.cls)};
+}
+function showRules(){dialog(`<h2>How to play</h2>${RULES}<p></p><button class="pri" id="ok">Back to the dungeon</button> <a href="index.html" style="margin-left:10px">Free table</a>`);$("ok").onclick=closeDialog}
+function finish(){
+  const s=game.score(),prev=best(game.cls);saveBest(game.cls,s);
+  const won=game.over==="won";
+  setTimeout(()=>chooseClass(`<h2>${won?"You cleared the dungeon!":"You have fallen…"}</h2>
+    <p>${game.hero.name}, level ${game.level}. ${won?`${game.hp} health left + ${game.xp} XP`:"Monsters left in the dungeon count against you"}. <b style="color:var(--ink)">Score: ${s}</b>${prev==null||s>prev?" · a new best!":""}</p>`),900);
+}
+async function start(cls){
+  game=new Game(cls,Dungeon.shuffled());selected=null;
+  // the dealt cards start on the deck, so the opening deal can be seen
+  const dealt=game.roomCards;
+  for(const c of cards){c.userData.spot=null}
+  const all=[...game.deck,...dealt];
+  all.forEach((n,i)=>place(byName[n],L.deck[0],stackY(i),L.deck[1],0,false));
+  hud();
+  await busyWhile(()=>layout());
+}
+
+frame(...L.view,0);
+cards.forEach((c,i)=>place(c,L.deck[0],stackY(i),L.deck[1],0,false));
+// turning a phone round switches between the two layouts
+addEventListener("resize",()=>{const was=L;setLayout();if(L.view[0]===was.view[0])return;
+  frame(...L.view,0);if(game){selected=null;for(const c of cards)c.userData.spot=null;layout(true);hud()}});
+chooseClass();
+// hooks for automated screenshots and tests: the game, and where a card is on screen (to tap it)
+window.__game={get game(){return game},start,choose,get busy(){return busy},
+  screenOf(n){const v=byName[n].position.clone().project(camera);return{x:(v.x+1)/2*innerWidth,y:(1-v.y)/2*innerHeight}}};
+</script>
+</body>
+</html>
