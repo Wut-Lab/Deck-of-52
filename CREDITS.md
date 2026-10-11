@@ -10,8 +10,9 @@ with no permission needed. The copies here come from the npm package
 
 ### Changes made for the Dragon Deck
 
-- Each of the 12 cards has one added layer: a small heraldic dragon perched beside the figure, drawn in the
-  set's own colours (gold `#FC4`, red, blue `#44F`) and line weights. Like the rest of each picture, it is
+- Each of the 12 cards has one added layer: a small heraldic dragon perched on the figure (a shoulder, sleeve
+  or flower), drawn in the set's own colours (gold `#FC4`, red, blue `#44F`), line weights and engraved
+  line shading. Like the rest of each picture, it is
   drawn once and repeated upside down for the bottom half.
 - Only the framed picture is used; the corner indices are the Dragon Deck's own.
 
