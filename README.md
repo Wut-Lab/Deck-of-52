@@ -21,7 +21,9 @@ Open `index.html` in a browser (it needs an internet connection to load three.js
 
 | File | What it does |
 | --- | --- |
-| `cardArt.js` | Paints each card face and the dragon back onto a 2D canvas, using code only (no image files) |
+| `cardArt.js` | Paints each card face and the dragon back onto a 2D canvas |
+| `courtFaces.js` | The 12 court card pictures (public-domain artwork by Adrian Kennard, each with a small dragon added — see `CREDITS.md`) |
 | `index.html` | The 3D table: turns those pictures into textures on thin rounded card models and animates them |
 | `art-preview.html` | A flat sheet of all the card art |
 | `previews/` | Screenshots |
+| `CREDITS.md` | Where the court card artwork comes from, and its licence |

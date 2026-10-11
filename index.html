@@ -28,7 +28,8 @@ button:disabled{opacity:.45;cursor:default}
  <button id="grid">Show all</button>
  <button id="gather">Gather</button>
 </div>
-<!-- 1. the card artwork (2D drawing code) -->
+<!-- 1. the card artwork: court card pictures, then the 2D drawing code -->
+<script src="courtFaces.js"></script>
 <script src="cardArt.js"></script>
 <!-- 2. where to download three.js, the 3D library -->
 <script type="importmap">
@@ -95,6 +96,7 @@ const maxAniso=renderer.capabilities.getMaxAnisotropy();
 const picture=canvas=>{const t=new THREE.CanvasTexture(canvas);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=maxAniso;return t};
 const backMat=new THREE.MeshStandardMaterial({map:picture(CardArt.canvas(null,null,512)),roughness:.35});
 
+await CardArt.ready; // wait for the court card pictures to load
 const cards=[];
 for(const suit of CardArt.SUITS)for(const rank of CardArt.RANKS){
   const card=new THREE.Group();
