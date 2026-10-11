@@ -61,34 +61,40 @@ function ace(ctx,s){
 }
 
 /* ---------- court cards (J, Q, K) ----------
-   Drawn in the traditional printed style: flat red, yellow, blue and black with heavy outlines and patterned robes.
+   Modelled on the classic printed court cards: the figure fills its frame edge to edge, robes are covered in
+   "braided" bands (black-edged strips filled with dots, blocks and crosses), faces are fine line drawings,
+   and the colours are only red, yellow, blue, black and white.
    The top half is drawn once; then the canvas is turned 180 degrees and the same drawing fills the bottom half.
-   The two halves meet on a diagonal, like real cards.
-   Dragon touches: dragon-scale cloth, a dragon badge on each king's chest, a little dragon perched on each
-   queen's shoulder, a dragon-wing plume in each jack's cap, and dragon-themed things in their hands. */
-const CK={red:"#d0281e",yellow:"#f2cd1d",blue:"#2b4ea6",black:"#151515",white:"#fffdf6",steel:"#e8edf3"};
-// colours, cloth pattern and the item each court card holds
+   Dragon touches are worked into the traditional props and cloth (see COURT below). */
+const CK={red:"#d8261c",yellow:"#f5d215",blue:"#2a4c9e",black:"#141414",white:"#fffdf6",grey:"#c9ced8"};
+// colours and props for each card: a = main robe colour, b = side panels, item = what they hold
 const COURT={
-  KS:{robe:"red",sleeve:"black",pat:"scales",item:"sword"},   KH:{robe:"red",sleeve:"blue",pat:"checker",item:"swordBehind"},
-  KC:{robe:"blue",sleeve:"red",pat:"scales",item:"egg"},      KD:{robe:"red",sleeve:"blue",pat:"zigzag",item:"axe"},
-  QS:{robe:"blue",sleeve:"red",pat:"scales",item:"sceptre"},  QH:{robe:"red",sleeve:"black",pat:"checker",item:"rose"},
-  QC:{robe:"blue",sleeve:"red",pat:"zigzag",item:"rose"},     QD:{robe:"red",sleeve:"blue",pat:"scales",item:"rose"},
-  JS:{robe:"blue",sleeve:"red",pat:"checker",item:"halberd"}, JH:{robe:"red",sleeve:"blue",pat:"scales",item:"feather"},
-  JC:{robe:"blue",sleeve:"red",pat:"zigzag",item:"arrow"},    JD:{robe:"red",sleeve:"blue",pat:"scales",item:"shield"},
+  KS:{a:"red",b:"black",item:"sword"},        // sword with a dragon-wing guard and dragon-head pommel
+  KH:{a:"red",b:"blue",item:"swordBehind"},   // the sword behind the head, dragon-head pommel
+  KC:{a:"black",b:"red",item:"egg"},          // a dragon egg instead of the orb
+  KD:{a:"red",b:"blue",item:"axe"},           // an axe with a dragon-wing blade
+  QS:{a:"red",b:"blue",item:"sceptre"},       // a sceptre topped with a dragon's head
+  QH:{a:"blue",b:"black",item:"flower"},
+  QC:{a:"red",b:"blue",item:"flower"},
+  QD:{a:"black",b:"red",item:"flower"},
+  JS:{a:"blue",b:"red",item:"feather"},       // a dragon-scale feather
+  JH:{a:"red",b:"blue",item:"leaf"},
+  JC:{a:"red",b:"blue",item:"arrow"},         // an arrow fletched with dragon fins
+  JD:{a:"red",b:"black",item:"halberd"},      // a halberd with a dragon-wing blade
 };
 // small repeating cloth patterns, drawn once at double resolution and reused
 const patterns={};
 function pattern(ctx,kind,a,b){
   const key=kind+a+b;
   if(!patterns[key]){
-    const size={checker:[12,12],scales:[12,10],zigzag:[12,10],stripes:[8,8],dots:[10,10]}[kind];
+    const size={checker:[10,10],scales:[12,10],ermine:[14,14],trefoil:[16,16],bars:[8,8]}[kind];
     const c=document.createElement("canvas");c.width=size[0]*2;c.height=size[1]*2;
     const g=c.getContext("2d");g.scale(2,2);g.fillStyle=a;g.fillRect(0,0,size[0],size[1]);g.fillStyle=b;g.strokeStyle=b;
-    if(kind==="checker"){g.fillRect(0,0,6,6);g.fillRect(6,6,6,6)}
-    if(kind==="scales"){g.strokeStyle=CK.black;g.lineWidth=.9;for(const[x,y]of[[0,0],[12,0],[6,5],[0,10],[12,10]]){g.beginPath();g.arc(x,y,5.6,0,Math.PI);g.fill();g.stroke()}}
-    if(kind==="zigzag"){g.lineWidth=2.4;g.beginPath();g.moveTo(-1,8);g.lineTo(6,2);g.lineTo(13,8);g.stroke()}
-    if(kind==="stripes")g.fillRect(0,0,3.5,8);
-    if(kind==="dots"){g.beginPath();g.arc(5,5,1.5,0,7);g.fill();g.fillRect(4.4,5,1.2,3.5)}
+    if(kind==="checker"){g.fillRect(0,0,5,5);g.fillRect(5,5,5,5)}
+    if(kind==="scales"){g.strokeStyle=CK.black;g.lineWidth=.8;for(const[x,y]of[[0,0],[12,0],[6,5],[0,10],[12,10]]){g.beginPath();g.arc(x,y,5.6,0,Math.PI);g.fill();g.stroke()}}
+    if(kind==="ermine")for(const[x,y]of[[3.5,3.5],[10.5,10.5]]){g.beginPath();g.moveTo(x,y-2);g.lineTo(x+1.6,y+2.5);g.lineTo(x-1.6,y+2.5);g.fill();g.fillRect(x-.4,y-3.4,.8,1.2)}
+    if(kind==="trefoil")for(const[x,y]of[[4,4],[12,12]]){for(const[dx,dy]of[[0,-1.8],[-1.7,.8],[1.7,.8]]){g.beginPath();g.arc(x+dx,y+dy,1.5,0,7);g.fill()}g.fillRect(x-.35,y,.7,3)}
+    if(kind==="bars")g.fillRect(0,0,8,3);
     patterns[key]=c;
   }
   const p=ctx.createPattern(patterns[key],"repeat");p.setTransform(new DOMMatrix().scale(.5));return p;
@@ -99,134 +105,186 @@ function court(ctx,rank,s){
   ctx.fillStyle=CK.white;ctx.fillRect(fx,fy,fw,fh);
   for(const turn of[0,Math.PI]){
     ctx.save();ctx.translate(W/2,H/2);ctx.rotate(turn);
-    ctx.beginPath();ctx.moveTo(-fw/2,-fh/2);ctx.lineTo(fw/2,-fh/2);ctx.lineTo(fw/2,-22);ctx.lineTo(-fw/2,22);ctx.clip(); // the diagonal half
-    ctx.save();courtFigure(ctx,rank,s,o);ctx.restore();
-    suit(ctx,s,-67,-118,36);
+    ctx.beginPath();ctx.moveTo(-fw/2,-fh/2);ctx.lineTo(fw/2,-fh/2);ctx.lineTo(fw/2,-20);ctx.lineTo(-fw/2,20);ctx.clip(); // the diagonal half
+    ctx.save();courtFigure(ctx,rank,o);ctx.restore();
+    suit(ctx,s,-66,-118,38);
     ctx.restore();
   }
-  ctx.strokeStyle=CK.black;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(fx,H/2+22);ctx.lineTo(fx+fw,H/2-22);ctx.stroke();
-  ctx.strokeStyle=CK.blue;ctx.lineWidth=1.6;ctx.strokeRect(fx,fy,fw,fh);
+  ctx.strokeStyle=CK.blue;ctx.lineWidth=1.5;ctx.strokeRect(fx,fy,fw,fh);
 }
 
-// one half-figure: frame centre at (0,0), head toward -y, the figure's head a little right of centre
-function courtFigure(ctx,rank,s,o){
-  const C=k=>CK[k]||k;
-  const ink=(lw=1.8,col=CK.black)=>{ctx.lineWidth=lw;ctx.strokeStyle=col;ctx.lineJoin="round";ctx.lineCap="round"};
-  const fill=(d,f,lw=1.8)=>{const p=new Path2D(d);ctx.fillStyle=f;ctx.fill(p);ink(lw);ctx.stroke(p)};
-  const line=(d,lw=1.2,col=CK.black)=>{ink(lw,col);ctx.stroke(new Path2D(d))};
+// one half-figure: frame centre at (0,0), head toward -y, frame edges at x = +-98 and y = -148
+function courtFigure(ctx,rank,o){
+  const C=k=>CK[k]||k,A=C(o.a),B=C(o.b);
+  const ink=(lw,col=CK.black)=>{ctx.lineWidth=lw;ctx.strokeStyle=col;ctx.lineJoin="round";ctx.lineCap="round"};
+  const fill=(d,f,lw=1.6)=>{const p=new Path2D(d);ctx.fillStyle=f;ctx.fill(p);if(lw){ink(lw);ctx.stroke(p)}};
+  const line=(d,lw=1,col=CK.black)=>{ink(lw,col);ctx.stroke(new Path2D(d))};
   const pat=(kind,a,b)=>pattern(ctx,kind,C(a),C(b));
-  const hand=(x,y)=>{fill(`M${x-8} ${y}C${x-9} ${y-8} ${x+7} ${y-10} ${x+9} ${y-2}C${x+9} ${y+6} ${x-7} ${y+7} ${x-8} ${y}Z`,CK.white,1.5);line(`M${x-3} ${y-6}V${y+4}M${x+2} ${y-6}V${y+4}`,1)};
-  const roundel=(x,y,r)=>{ // a gold badge with a red dragon curled inside
-    fill(`M${x+r} ${y}A${r} ${r} 0 1 1 ${x-r} ${y}A${r} ${r} 0 1 1 ${x+r} ${y}Z`,CK.yellow,1.5);
-    ctx.save();ctx.translate(x,y);ctx.scale(r/14,r/14);
-    fill("M-8 7C-12 2 -8 -3 -2 -1C3 1 7 -1 6 -6L10 -9L9 -4L12 -3L8 -1C8 5 1 6 -3 4C-6 3 -7 5 -5 8Z",CK.red,1);
-    fill("M-1 -1L-5 -9L1 -5L3 -10L4 -2Z",CK.red,1);
-    ctx.restore();
+  // a braided band: black edges, a coloured strip, and a repeating motif along its middle
+  const band=(d,w,base,motif)=>{
+    const p=new Path2D(d);ctx.lineJoin="round";ctx.lineCap="butt";
+    ctx.lineWidth=w+2.6;ctx.strokeStyle=CK.black;ctx.stroke(p);ctx.lineWidth=w;ctx.strokeStyle=C(base);ctx.stroke(p);
+    if(!motif)return;
+    ctx.save();
+    if(motif==="dots"){ctx.setLineDash([0,w*.95]);ctx.lineCap="round";ctx.lineWidth=w*.42;ctx.strokeStyle=CK.black}
+    if(motif==="blocks"){ctx.setLineDash([w*.55,w*.55]);ctx.lineWidth=w*.62;ctx.strokeStyle=CK.red}
+    if(motif==="bluedots"){ctx.setLineDash([0,w*.95]);ctx.lineCap="round";ctx.lineWidth=w*.42;ctx.strokeStyle=CK.blue}
+    if(motif==="line"){ctx.lineWidth=1;ctx.strokeStyle=CK.black}
+    if(motif==="stitch"){ctx.setLineDash([w*.3,w*.3]);ctx.lineWidth=w*.8;ctx.strokeStyle=CK.black}
+    ctx.stroke(p);ctx.restore();
   };
-  const robe=C(o.robe),sleeve=C(o.sleeve);
-  ctx.translate(-6,22);ctx.scale(1.25,1.25); // enlarge so the figure fills the frame, like real court cards
-  const headSpace=()=>{ctx.save();ctx.translate(10,-70);ctx.scale(.8,.8);ctx.translate(-10,70)}; // heads a little smaller than the body
+  // a white fist gripping something at (x,y)
+  const fist=(x,y,flip=1)=>{ctx.save();ctx.translate(x,y);ctx.scale(flip,1);
+    fill("M-8 -6C-8 -10 6 -10 8 -6V5C8 9 -6 9 -8 5Z",CK.white,1.4);
+    line("M-8 -2H4M-8 1.5H4M-8 5H3",.8,CK.blue);fill("M2 -7C8 -8 10 -4 7 -1C5 -3 3 -4 2 -7Z",CK.white,1);
+    ctx.restore()};
+  const pommelDragon=(x,y,r=0)=>{ctx.save();ctx.translate(x,y);ctx.rotate(r);   // a little dragon head on a hilt
+    fill("M0 0C-6 0 -9 -4 -8 -8C-6 -11 0 -11 4 -8L9 -7L5 -4L8 -3L3 -1Z",CK.yellow,1.1);
+    fill("M-4 -10L-8 -15L-1 -11Z",CK.yellow,.8);ctx.fillStyle=CK.black;ctx.beginPath();ctx.arc(0,-7,1,0,7);ctx.fill();ctx.restore()};
+  const badge=(x,y,r)=>{ // a round gold badge with a red dragon curled inside
+    fill(`M${x+r} ${y}A${r} ${r} 0 1 1 ${x-r} ${y}A${r} ${r} 0 1 1 ${x+r} ${y}Z`,CK.yellow,1.4);
+    ctx.save();ctx.translate(x,y);ctx.scale(r/14,r/14);
+    fill("M-8 7C-12 2 -8 -3 -2 -1C3 1 7 -1 6 -6L10 -9L9 -4L12 -3L8 -1C8 5 1 6 -3 4C-6 3 -7 5 -5 8Z",CK.red,.9);
+    fill("M-1 -1L-5 -9L1 -5L3 -10L4 -2Z",CK.red,.9);ctx.restore()};
 
-  /* items carried behind the body (shifted in so they stay inside the frame) */
-  const inward=()=>{ctx.save();ctx.translate(-24,o.item==="sceptre"?18:0)};
-  inward();
-  if(o.item==="swordBehind"){fill("M58 -40L-36 -150L-28 -152L64 -46Z",CK.steel,1.6);line("M61 -43L-32 -151",1,CK.blue)}
-  if(o.item==="halberd"||o.item==="sceptre"||o.item==="axe"||o.item==="arrow")fill("M72 -16V-136H77V-16Z",o.item==="sceptre"?CK.yellow:"#9a6a2c",1.5);
-  if(o.item==="feather"){fill("M70 -30C50 -70 44 -110 58 -146C76 -110 80 -70 70 -30Z",pat("scales","yellow","red"),1.6);line("M70 -30C62 -70 58 -110 58 -146",1.2)}
+  const headSpace=()=>{ctx.save();ctx.translate(7,-57);ctx.scale(1.25,1.25);ctx.translate(-7,72)}; // heads drawn larger, as on real cards
 
-  ctx.restore();
-
-  /* robe: sleeves, chest panel, trims */
-  fill("M-100 40V-38C-96 -56 -74 -64 -44 -68H52C80 -64 96 -56 100 -40V40Z",robe);
-  fill("M-100 40V-38C-96 -56 -80 -62 -58 -66C-62 -40 -60 -10 -52 40Z",sleeve);
-  fill("M100 40V-38C96 -56 80 -62 60 -66C64 -40 62 -10 56 40Z",sleeve);
-  fill("M-58 -66C-62 -40 -60 -10 -52 40H-42C-50 -10 -52 -40 -48 -67Z",pat("stripes","yellow",CK.black),1.4);
-  fill("M60 -66C64 -40 62 -10 56 40H46C54 -10 54 -40 50 -67Z",pat("stripes","yellow",CK.black),1.4);
-  fill("M-40 40C-44 0 -44 -40 -38 -68H44C48 -40 48 0 44 40Z",pat(o.pat,o.robe,"yellow"),1.4);
-  fill("M-6 40V-68H14V40Z",pat("dots","yellow",CK.black),1.4);
-  if(rank!=="Q")fill("M-40 -60L-30 -68L48 24L40 34Z",pat(o.pat==="scales"?"checker":"scales",o.pat==="scales"?"yellow":"red",o.pat==="scales"?CK.black:"yellow"),1.4);
-
-  headSpace();
-  /* hair and veil behind the head */
-  if(rank==="K"){fill("M-14 -100C-20 -84 -18 -70 -12 -64H36C42 -70 42 -86 36 -100Z",CK.white,1.6);line("M-12 -90C-14 -80 -12 -72 -8 -66M32 -92C36 -82 36 -72 32 -66",1,CK.blue)}
-  if(rank==="J")fill("M-16 -104C-26 -88 -24 -72 -16 -62H38C46 -72 46 -88 38 -104Z",CK.yellow,1.6);
-  if(rank==="Q"){fill("M-14 -100C-22 -84 -20 -70 -14 -62H36C42 -70 42 -86 36 -100Z",CK.yellow,1.6);fill("M-14 -120C-28 -104 -32 -84 -36 -62L-18 -60C-18 -80 -14 -100 -6 -118Z",sleeve,1.6)}
-  ctx.restore();
-
-  /* neck, collar */
-  fill("M2 -76V-64H18V-76Z",CK.white,1.4);
-  if(rank==="K")fill("M-28 -66C-14 -52 34 -52 48 -66C40 -78 -20 -78 -28 -66Z",pat("dots",CK.white,CK.black),1.6);
-  if(rank==="Q")fill("M-28 -66C-14 -52 34 -52 48 -66C40 -78 -20 -78 -28 -66Z",pat("checker","yellow",CK.black),1.6);
-  if(rank==="J")fill("M-24 -66C-12 -56 32 -56 44 -66C36 -76 -16 -76 -24 -66Z",CK.yellow,1.6);
-  if(rank==="K")roundel(4,-34,14);
+  /* ---- props carried behind the body ---- */
+  if(o.item==="swordBehind"){fill("M64 -96L-60 -150L-56 -156L68 -102Z",CK.white,1.4);line("M66 -99L-58 -153",.8,CK.blue)}
+  if(o.item==="axe"||o.item==="sceptre"||o.item==="halberd"||o.item==="arrow")
+    fill(`M${o.item==="halberd"?-90:80} 20V-142H${o.item==="halberd"?-85:85}V20Z`,o.item==="sceptre"?CK.yellow:"#8a5a26",1.2);
+  if(o.item==="axe"){fill("M85 -138C98 -146 104 -126 98 -108C93 -114 90 -114 85 -110Z",CK.white,1.4);line("M88 -134L97 -128M88 -126L96 -118",.7,CK.blue)}
+  if(o.item==="halberd"){fill("M-90 -136C-104 -144 -110 -124 -104 -106C-99 -112 -95 -112 -90 -108Z",CK.white,1.4);fill("M-90 -142L-87.5 -154L-85 -142Z",CK.white,1)}
 
   headSpace();
-  /* face: three-quarter view, looking to the left */
-  fill("M12 -124C30 -124 38 -112 38 -98C38 -82 30 -72 14 -71C2 -71 -6 -78 -10 -90L-15 -95L-10 -98C-10 -112 -4 -124 12 -124Z",CK.white,1.8);
-  fill("M-7 -101Q-1 -105 5 -101Q-1 -98 -7 -101Z",CK.white,1.1);fill("M13 -101Q19 -105 25 -101Q19 -98 13 -101Z",CK.white,1.1);
-  ctx.fillStyle=CK.blue;for(const x of[-1,18]){ctx.beginPath();ctx.arc(x,-101,1.7,0,7);ctx.fill()}
-  line("M-8 -106Q-1 -109 5 -106M13 -106Q19 -109 26 -106",1.3);
-  line("M8 -102L4 -90L9 -89",1.2);
-  line("M2 -82Q8 -80 14 -82",1.4,CK.red);
-  line("M28 -92Q32 -88 30 -84",1,CK.blue);
-  if(rank==="K"){
-    fill("M-6 -84C-4 -70 4 -62 14 -60C24 -62 32 -70 34 -84C28 -78 20 -76 14 -78C8 -76 0 -78 -6 -84Z",CK.white,1.5);
-    line("M4 -76C6 -70 8 -66 12 -62M14 -74V-62M24 -76C22 -70 20 -66 16 -62",.9,CK.blue);
-    fill("M-2 -86C4 -90 12 -90 18 -86C14 -84 10 -85 8 -87C6 -85 2 -84 -2 -86Z",CK.white,1.3);
+  /* ---- hair, hood and veil behind the head ---- */
+  if(rank==="K"){fill("M-12 -108C-20 -96 -20 -80 -14 -68H34C40 -80 38 -98 30 -110Z",CK.grey,1.4);
+    line("M-12 -100C-16 -90 -14 -80 -10 -72M-6 -98C-10 -88 -8 -78 -4 -70M26 -102C32 -92 32 -80 28 -70M30 -96C34 -88 34 -78 32 -70",.7,CK.blue)}
+  if(rank==="Q"){
+    fill("M-20 -64C-24 -96 -14 -132 8 -134C32 -134 40 -100 36 -64Z",B,1.5);                         // hood
+    fill("M-14 -66C-18 -94 -10 -124 8 -126C28 -126 32 -96 30 -66Z",CK.yellow,1.2);                  // hood lining
+    line("M-10 -70C-12 -94 -6 -116 8 -120M26 -70C28 -94 24 -116 8 -120",.7,CK.black);
   }
+  if(rank==="J"){for(const s of[-1,1]){const x=s<0?-12:30;
+    fill(`M${x} -112C${x+s*12} -100 ${x+s*12} -82 ${x+s*4} -66C${x-s*4} -76 ${x-s*4} -96 ${x-s*2} -110Z`,CK.yellow,1.3);
+    line(`M${x+s*2} -104C${x+s*8} -100 ${x+s*8} -94 ${x+s*3} -92M${x+s*4} -90C${x+s*10} -86 ${x+s*9} -80 ${x+s*4} -78`,.8)}}
+  ctx.restore();
 
-  /* headwear */
+  /* ---- the body fills the frame edge to edge ---- */
+  fill("M-100 30V-58C-82 -66 -52 -72 -22 -74H36C64 -72 84 -66 100 -58V30Z",A,1.6);
+  // side panels in the second colour, patterned
+  fill("M-100 30V-58C-82 -66 -56 -70 -34 -72C-50 -48 -58 -14 -54 30Z",B,1.4);
+  fill("M100 30V-58C84 -66 66 -70 48 -72C62 -48 70 -14 66 30Z",B,1.4);
+  fill("M-100 30V-58C-82 -66 -56 -70 -34 -72C-50 -48 -58 -14 -54 30Z",pat(rank==="Q"?"scales":"trefoil",o.b,rank==="Q"?"yellow":"yellow"),0);
+  fill("M100 30V-58C84 -66 66 -70 48 -72C62 -48 70 -14 66 30Z",pat(rank==="J"?"checker":"trefoil",o.b,"yellow"),0);
+  // the robe's opening edges: big curved braided bands, like the C-shaped trims on real court cards
+  band("M-34 -72C-50 -48 -58 -14 -54 30",10,"yellow","dots");
+  band("M48 -72C62 -48 70 -14 66 30",10,"yellow","dots");
+
   if(rank==="K"){
-    fill("M-12 -120L-14 -132H38L36 -120Z",pat("scales","yellow","red"),1.6);
-    fill("M-14 -132L-16 -147L-5 -139L4 -148L12 -139L20 -148L28 -139L39 -147L38 -132Z",CK.yellow,1.6);
-    ctx.fillStyle=CK.red;for(const x of[-4,12,28]){ctx.beginPath();ctx.arc(x,-136,2.5,0,7);ctx.fill()}
+    // front placket: stacked red and yellow bars, with a dragon badge on the chest
+    fill("M-8 30V-62H20V30Z",pat("bars","yellow","red"),1.4);
+    band("M-8 -62V30",3,"black");band("M20 -62V30",3,"black");
+    badge(6,-40,12);
+    band("M-34 -10C-10 -2 20 -2 48 -10",8,"yellow","dots");                                           // belt
+    // ermine cape across the shoulders
+    fill("M-44 -72C-30 -56 44 -56 58 -72C52 -80 30 -78 6 -78C-18 -78 -38 -80 -44 -72Z",pat("ermine","white","black"),1.5);
   }
   if(rank==="Q"){
-    fill("M-12 -118L-14 -132L-4 -126L5 -140L14 -126L24 -140L32 -126L38 -132L36 -118Z",CK.yellow,1.6);
-    fill("M-12 -118H36V-114H-12Z",pat("checker",CK.red,CK.black),1.2);
-    ctx.fillStyle=CK.blue;ctx.beginPath();ctx.arc(14,-124,2.6,0,7);ctx.fill();
+    // square-necked bodice with a checked border, and the long veil band sweeping across
+    fill("M-24 -72L-16 -50H30L38 -72Z",A,1.4);
+    band("M-24 -72L-16 -50H30L38 -72",6,"yellow","stitch");
+    fill("M-6 30V-50H20V30Z",pat("checker","yellow","black"),1.3);
+    band("M90 -120C66 -84 0 -40 -100 -2",13,"black","blocks");
+    band("M96 -112C72 -78 8 -34 -100 8",5,"yellow");
   }
   if(rank==="J"){
-    fill("M-18 -114C-20 -136 44 -140 42 -114Z",sleeve,1.6);
-    fill("M-20 -116H44V-109H-20Z",pat("checker","yellow",CK.black),1.4);
+    // tunic: crossed straps over a dark centre panel
+    fill("M-14 30V-62H26V30Z",B,1.4);
+    band("M-34 -66L48 20",9,"yellow","blocks");band("M48 -66L-34 20",9,"yellow","dots");
+    fill("M6 -30L12 -24L6 -18L0 -24Z",CK.white,1);
+    fill("M-30 -72C-16 -62 30 -62 44 -72C40 -78 -26 -78 -30 -72Z",CK.yellow,1.4);                    // collar
+    band("M-30 -72C-16 -62 30 -62 44 -72",3,"black");
+  }
+
+  headSpace();
+  /* ---- neck and face: a fine line drawing, three-quarter view looking left ---- */
+  fill("M0 -78V-68H14V-78Z",CK.white,1.2);
+  fill("M6 -118C21 -118 28 -108 28 -95C28 -83 22 -75 10 -73C0 -73 -8 -79 -11 -89L-15 -93L-11 -96C-12 -108 -6 -118 6 -118Z",CK.white,1.5);
+  line("M-7 -99Q-3 -102 1 -99M9 -99Q14 -102 19 -99",1);                                                   // upper lids
+  line("M-6 -97Q-3 -96 0 -97M10 -97Q14 -96 18 -97",.6,CK.blue);                                          // lower lids
+  ctx.fillStyle=CK.blue;for(const x of[-3,14]){ctx.beginPath();ctx.arc(x,-98.5,1.5,0,7);ctx.fill()}
+  line("M-8 -104Q-3 -107 2 -104M9 -104Q14 -107 20 -104",.9);                                              // brows
+  line("M4 -101C3 -95 0 -91 -2 -88C0 -86 3 -86 6 -87",.9);                                               // nose
+  fill("M-1 -82Q4 -84 9 -82Q4 -79 -1 -82Z",CK.red,0);                                                    // lips
+  line("M25 -97C29 -96 29 -89 25 -87",.8);                                                               // ear
+  if(rank==="K"){
+    fill("M-8 -83C-6 -71 0 -64 7 -62C14 -64 20 -71 22 -83C16 -79 11 -78 7 -80C3 -78 -2 -79 -8 -83Z",CK.grey,1.2);  // beard
+    line("M-2 -78C0 -72 3 -68 6 -64M7 -76V-63M16 -78C14 -72 11 -68 8 -64",.6,CK.blue);
+    fill("M-6 -84C-2 -88 4 -88 7 -85C10 -88 16 -88 20 -84C17 -82 12 -82 7 -84C2 -82 -3 -82 -6 -84Z",CK.grey,1); // moustache
+    line("M-6 -84C-9 -84 -10 -87 -8 -88M20 -84C23 -84 24 -87 22 -88",.9);
+  }
+  if(rank==="J")line("M-4 -76C0 -74 4 -74 8 -76",.6,CK.blue);
+
+  /* ---- headwear ---- */
+  if(rank==="K"){
+    fill("M-16 -112C-16 -132 30 -132 30 -112Z",CK.red,1.3);                                               // cap inside the crown
+    fill("M-18 -112L-20 -128L-12 -122L-7 -134L1 -124L7 -139L13 -124L21 -134L26 -122L34 -128L32 -112Z",CK.yellow,1.4);
+    fill("M-18 -118H32V-111H-18Z",CK.yellow,1.3);
+    ctx.fillStyle=CK.red;for(const x of[-12,-2,8,18,26])ctx.fillRect(x,-117,4,4.5);
+    ctx.fillStyle=CK.black;for(const x of[-7,3,13,22]){ctx.beginPath();ctx.arc(x+1,-114.7,1.2,0,7);ctx.fill()}
+    for(const[x,y]of[[-7,-134],[7,-139],[21,-134]]){ctx.fillStyle=CK.yellow;ctx.beginPath();ctx.arc(x,y-2,2.2,0,7);ctx.fill();ink(.9);ctx.stroke()}
+  }
+  if(rank==="Q"){
+    fill("M-10 -120L-12 -132L-5 -127L1 -137L7 -127L13 -137L19 -127L26 -132L24 -120Z",CK.yellow,1.3);
+    fill("M-10 -122H24V-117H-10Z",pat("checker","red","black"),1);
+  }
+  if(rank==="J"){
+    fill("M-16 -112L-18 -138H30L28 -112Z",CK.red,1.4);                                                    // flat-topped cap
+    fill("M-20 -118H32V-110H-20Z",CK.yellow,1.3);band("M-20 -114H32",2.5,"yellow","stitch");
     // dragon-wing plume
-    fill("M34 -128C42 -144 60 -148 74 -142C68 -138 68 -134 70 -128C64 -131 58 -130 56 -124C52 -127 46 -126 42 -120Z",robe===CK.red?CK.yellow:CK.red,1.5);
-    line("M38 -124L72 -140M38 -124L68 -130M38 -124L56 -124",.9);
+    fill("M26 -132C36 -148 56 -150 70 -144C64 -140 64 -136 66 -130C60 -133 54 -132 52 -126C48 -129 42 -128 36 -122Z",A===CK.red?CK.yellow:CK.red,1.3);
+    line("M30 -126L68 -142M30 -126L64 -132M30 -126L52 -126",.7);
   }
   ctx.restore();
 
-  /* items held in front, and the hands that hold them */
-  inward();
-  const R=[74,-26]; // right hand (viewer's right)
-  if(o.item==="sword"){fill("M70 -38V-138L74 -146L78 -138V-38Z",CK.steel,1.6);line("M74 -40V-138",.9,CK.blue);
-    fill("M58 -34C64 -42 70 -40 74 -38C78 -40 84 -42 90 -34C84 -32 80 -31 74 -31C68 -31 64 -32 58 -34Z",CK.yellow,1.4);hand(...R)} // wing-shaped crossguard
-  if(o.item==="swordBehind"){fill("M50 -36L58 -48L70 -40L62 -28Z",CK.yellow,1.4);hand(62,-30)}
-  if(o.item==="axe"){fill("M77 -128C94 -138 100 -120 98 -104C92 -110 86 -110 82 -104C84 -112 82 -116 77 -114Z",CK.steel,1.6);line("M80 -124L96 -118M80 -118L94 -110",.8,CK.blue);hand(...R)} // blade shaped like a dragon wing
-  if(o.item==="halberd"){fill("M77 -122C92 -130 96 -112 92 -100C86 -106 82 -106 77 -104Z",CK.steel,1.5);fill("M72 -136L74.5 -150L77 -136Z",CK.steel,1.2);hand(...R)}
-  if(o.item==="arrow"){fill("M70 -134L74.5 -148L79 -134Z",CK.steel,1.4);fill("M68 -44L74.5 -54L81 -44L74.5 -48Z",CK.red,1.2);hand(...R)}
-  if(o.item==="sceptre"){ // topped with a dragon's head
-    fill("M74 -134C64 -134 58 -140 62 -146C68 -150 78 -148 84 -142L90 -140L84 -136L78 -134Z",CK.yellow,1.5);
-    fill("M70 -146L64 -154L74 -148Z",CK.yellow,1.1);ctx.fillStyle=CK.black;ctx.beginPath();ctx.arc(76,-142,1.4,0,7);ctx.fill();hand(...R)}
-  if(o.item==="feather")hand(70,-30);
-  ctx.restore();
-  if(o.item==="egg"){ // a dragon egg instead of an orb
-    ctx.save();ctx.translate(16,0);
-    fill("M-60 -96C-48 -96 -44 -80 -44 -70C-44 -58 -52 -52 -60 -52C-68 -52 -76 -58 -76 -70C-76 -80 -72 -96 -60 -96Z",pat("scales",CK.red,"yellow"),1.6);
-    fill("M-76 -72H-44V-66H-76Z",CK.yellow,1.2);hand(-60,-48);ctx.restore()}
-  if(o.item==="shield"){ctx.save();ctx.translate(10,8);fill("M-36 -64A22 22 0 1 1 -80 -64A22 22 0 1 1 -36 -64Z",CK.blue,1.8);fill("M-41 -64A17 17 0 1 1 -75 -64A17 17 0 1 1 -41 -64Z",CK.white,1.2);roundel(-58,-64,13);ctx.restore()}
-  if(o.item==="rose"){
-    line("M-24 -40C-28 -50 -30 -62 -28 -74",1.6,"#2f7a2f");
-    fill("M-28 -60C-36 -64 -40 -58 -38 -54C-34 -56 -30 -56 -28 -60Z","#3c8c3c",1);
-    for(let i=0;i<5;i++){const a=i/5*Math.PI*2;fill(`M${-28+Math.cos(a)*5} ${-80+Math.sin(a)*5}A5.5 5.5 0 1 1 ${-28+Math.cos(a)*5-.01} ${-80+Math.sin(a)*5}Z`,CK.red,1)}
-    ctx.fillStyle=CK.yellow;ctx.beginPath();ctx.arc(-28,-80,3,0,7);ctx.fill();hand(-24,-40)}
-  if(rank==="Q"&&o.item!=="sceptre"){ // a little dragon perched on the queen's shoulder, looking at her (the spade queen's is on her sceptre)
-    ctx.save();ctx.translate(66,-64);ctx.scale(-1,1);
-    fill("M-8 -18C-14 -30 -10 -42 0 -46C-2 -38 2 -34 8 -34C4 -30 0 -24 -4 -18Z",CK.red,1.2);             // wing
-    fill("M-12 0C-16 -8 -12 -16 -4 -18C2 -19 6 -22 8 -28C12 -31 17 -29 18 -25L22 -22L16 -20C14 -16 12 -12 8 -8C6 -3 2 0 -12 0Z",CK.yellow,1.3); // body and head
-    fill("M10 -29L6 -36L13 -31Z",CK.yellow,1);                                                            // horn
-    line("M-12 0C-20 2 -24 -4 -20 -8",1.6);                                                               // tail
-    ctx.fillStyle=CK.black;ctx.beginPath();ctx.arc(14,-26,1.2,0,7);ctx.fill();
-    ctx.restore();
+  /* ---- props held in front, with the arms and hands that grip them ---- */
+  const arm=(x1,y1,x2,y2)=>{ // a sleeve from the shoulder to the wrist, ending in a braided cuff
+    const d=`M${x1} ${y1}Q${(x1+x2)/2} ${Math.max(y1,y2)+10} ${x2} ${y2+8}`;
+    band(d,16,o.b,null);band(d,16,o.b,"line");
+    const a=Math.atan2(y2+8-(Math.max(y1,y2)+10),x2-(x1+x2)/2),cx=x2-Math.cos(a)*6,cy=y2+8-Math.sin(a)*6;
+    band(`M${cx-Math.sin(a)*9} ${cy+Math.cos(a)*9}L${cx+Math.sin(a)*9} ${cy-Math.cos(a)*9}`,6,"yellow","dots");
+  };
+  const right=["sword","axe","sceptre","arrow","feather","egg"].includes(o.item),left=["flower","leaf","halberd","egg"].includes(o.item);
+  if(right)arm(46,-62,o.item==="egg"?72:o.item==="feather"?80:82.5,o.item==="egg"?-42:-36);
+  if(o.item==="swordBehind")arm(46,-62,70,-90);
+  if(left)arm(-30,-62,o.item==="halberd"?-87.5:o.item==="egg"?-82:-57,o.item==="egg"?-32:-44);
+  if(o.item==="sword"){   // upright on the right, dragon-wing guard
+    fill("M78 -50V-142L82.5 -150L87 -142V-50Z",CK.white,1.4);line("M82.5 -52V-142",.7,CK.blue);
+    fill("M68 -46C74 -54 79 -52 82.5 -50C86 -52 91 -54 97 -46C91 -44 87 -43 82.5 -43C78 -43 74 -44 68 -46Z",CK.yellow,1.2);
+    fill("M80 -42H85V-26H80Z",CK.black,1);fist(82.5,-34);pommelDragon(82.5,-20,Math.PI)}
+  if(o.item==="swordBehind"){fill("M60 -104L72 -96L66 -88L54 -96Z",CK.yellow,1.2);fist(70,-86,-1);pommelDragon(74,-74,2.4)}
+  if(o.item==="egg"){     // a scaly dragon egg, held up like a king's orb
+    fill("M72 -84C82 -84 86 -70 86 -62C86 -52 80 -46 72 -46C64 -46 58 -52 58 -62C58 -70 62 -84 72 -84Z",pat("scales","red","yellow"),1.4);
+    band("M58 -62H86",3,"yellow");fist(72,-40);
+    fill("M-86 20V-90L-82 -98L-78 -90V20Z",CK.white,1.3);fill("M-92 -42H-72V-37H-92Z",CK.yellow,1);fist(-82,-30)}
+  if(o.item==="axe"||o.item==="sceptre"||o.item==="arrow")fist(82.5,-40);
+  if(o.item==="sceptre"){ctx.save();ctx.translate(82.5,-140);ctx.scale(1.6,1.6);pommelDragon(0,0,0);ctx.restore()}
+  if(o.item==="arrow"){fill("M78 -140L82.5 -152L87 -140Z",CK.white,1.2);fill("M76 -18L82.5 -30L89 -18L82.5 -22Z",CK.red,1)}
+  if(o.item==="halberd")fist(-87.5,-40);
+  if(o.item==="flower"||o.item==="leaf"){ // held up on the left, just under the suit symbol
+    line("M-58 -46C-62 -60 -64 -72 -62 -84",1.5,"#2f6b2f");
+    if(o.item==="flower"){for(let i=0;i<5;i++){const a=i/5*Math.PI*2;fill(`M${-62+Math.cos(a)*4.5} ${-89+Math.sin(a)*4.5}A4.6 4.6 0 1 1 ${-62+Math.cos(a)*4.5-.01} ${-89+Math.sin(a)*4.5}Z`,CK.red,.9)}
+      ctx.fillStyle=CK.yellow;ctx.beginPath();ctx.arc(-62,-89,2.6,0,7);ctx.fill()}
+    else fill("M-62 -84C-74 -94 -72 -110 -62 -118C-54 -108 -52 -94 -62 -84Z",CK.yellow,1.1);
+    fill("M-60 -66C-68 -70 -72 -64 -70 -60C-66 -62 -62 -62 -60 -66Z","#3c8c3c",.8);fist(-57,-42,-1)}
+  if(o.item==="feather"){fill("M80 -36C64 -70 62 -110 72 -146C88 -112 90 -72 80 -36Z",pat("scales","yellow","red"),1.3);line("M80 -36C72 -72 70 -110 72 -146",.9);fist(80,-34)}
+  if(rank==="Q"&&o.item!=="sceptre"){ // a little dragon perched on the queen's shoulder, looking at her
+    ctx.save();ctx.translate(70,-62);ctx.scale(-1,1);
+    fill("M-8 -18C-14 -30 -10 -42 0 -46C-2 -38 2 -34 8 -34C4 -30 0 -24 -4 -18Z",CK.red,1.1);
+    fill("M-12 0C-16 -8 -12 -16 -4 -18C2 -19 6 -22 8 -28C12 -31 17 -29 18 -25L22 -22L16 -20C14 -16 12 -12 8 -8C6 -3 2 0 -12 0Z",CK.yellow,1.2);
+    fill("M10 -29L6 -36L13 -31Z",CK.yellow,.9);line("M-12 0C-20 2 -24 -4 -20 -8",1.4);
+    ctx.fillStyle=CK.black;ctx.beginPath();ctx.arc(14,-26,1.1,0,7);ctx.fill();ctx.restore();
   }
 }
 
