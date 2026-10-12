@@ -5,218 +5,204 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dragon Deck</title>
 <style>
-:root{--bg:#18261d;--ink:#f3f1ea;--panel:rgba(20,30,24,.78);--accent:#9b1b27}
+:root{--bg:#18261d;--ink:#f3f1ea;--panel:rgba(20,30,24,.82);--accent:#9b1b27;--gold:#e6c36a;--bad:#ff8a7a}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,sans-serif}
 #view{position:fixed;inset:0;touch-action:none}
-#hud{position:fixed;top:12px;left:16px;right:16px;pointer-events:none}
+#hud{position:fixed;top:12px;left:16px;right:16px;display:flex;justify-content:space-between;gap:12px;pointer-events:none}
 h1{margin:0;font:600 20px Georgia,serif;letter-spacing:.02em}
-#hint{margin:2px 0 0;opacity:.75;font-size:14px}
-#bar{position:fixed;left:16px;right:16px;bottom:16px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-button{font:inherit;padding:9px 15px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:var(--panel);color:var(--ink);cursor:pointer;backdrop-filter:blur(4px)}
+#rule{margin:2px 0 0;opacity:.75;font-size:14px}
+#tally{text-align:right;font-variant-numeric:tabular-nums}
+#tally b{font:600 22px Georgia,serif;color:var(--gold);display:block}
+#panel{position:fixed;left:16px;right:16px;bottom:16px;margin:0 auto;max-width:560px;padding:12px 14px;border-radius:12px;background:var(--panel);backdrop-filter:blur(4px);text-align:center}
+#status{font-size:17px;min-height:1.4em;font-variant-numeric:tabular-nums}
+#status.bad{color:var(--bad)}
+#detail{opacity:.8;font-size:14px;min-height:1.4em}
+#buttons{display:flex;gap:8px;justify-content:center;margin-top:8px}
+button{font:inherit;padding:9px 18px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--ink);cursor:pointer}
 button.pri{background:var(--accent);border-color:transparent}
 button:disabled{opacity:.45;cursor:default}
+button[hidden]{display:none}
 </style>
 </head>
 <body>
 <div id="view"></div>
-<header id="hud"><h1>Dragon Deck</h1><p id="hint">Tap any card to flip it · drag to look around</p></header>
-<div id="bar">
- <button id="shuffle" class="pri">Shuffle</button>
- <button id="deal">Deal 5</button>
- <button id="fan">Fan</button>
- <button id="grid">Show all</button>
- <button id="gather">Gather</button>
+<header id="hud">
+ <div><h1>Dragon Deck</h1><p id="rule">A = 1 · J, Q, K = 11</p></div>
+ <div id="tally"><span id="round">Round 1 of 5</span><b id="score">0</b></div>
+</header>
+<div id="panel">
+ <div id="status">Shuffling…</div>
+ <div id="detail"></div>
+ <div id="buttons">
+  <button id="play" class="pri" disabled>Play</button>
+  <button id="clear" disabled>Clear</button>
+  <button id="next" class="pri" hidden>Next round</button>
+ </div>
 </div>
-<!-- 1. the card artwork: court card pictures, then the 2D drawing code -->
+<!-- 1. the card artwork, the rules, and the shared 3D table -->
 <script src="artwork.js"></script>
 <script src="cardArt.js"></script>
+<script src="rules.js"></script>
+<script src="table.js"></script>
 <!-- 2. where to download three.js, the 3D library -->
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
 </script>
-<!-- 3. the 3D scene -->
+<!-- 3. the game: deal, pick cards, score -->
 <script type="module">
 import * as THREE from "three";
 import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import {RoomEnvironment} from "three/addons/environments/RoomEnvironment.js";
 
-/* ---------- the stage: renderer, camera, lights ---------- */
-const view=document.getElementById("view");
-const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-renderer.toneMapping=THREE.NeutralToneMapping; // keeps white card stock white
-view.appendChild(renderer.domElement);
-
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x18261d);
-scene.environment=new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(),.04).texture; // soft reflections: the glossy sheen on cards
-scene.environmentIntensity=.35;
-scene.add(new THREE.HemisphereLight(0xfff4e0,0x203020,.8));
-const lamp=new THREE.DirectionalLight(0xfff2dc,2.4);lamp.position.set(4,14,6);lamp.castShadow=true;
-lamp.shadow.mapSize.set(2048,2048);lamp.shadow.bias=-.0002;lamp.shadow.normalBias=.01;
-Object.assign(lamp.shadow.camera,{left:-20,right:20,top:20,bottom:-20,near:1,far:40});
-scene.add(lamp);
-
-const camera=new THREE.PerspectiveCamera(40,1,.1,200);
-const controls=new OrbitControls(camera,renderer.domElement);
-controls.enableDamping=true;controls.enablePan=false;controls.maxPolarAngle=1.25;controls.minDistance=4;controls.maxDistance=70;
-
-/* ---------- the table: green felt with a wooden rim ---------- */
-function canvasTexture(size,draw){const c=document.createElement("canvas");c.width=c.height=size;draw(c.getContext("2d"),size);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;return t}
-const feltTex=canvasTexture(256,(g,s)=>{g.fillStyle="#2c6a3f";g.fillRect(0,0,s,s);const d=g.getImageData(0,0,s,s);for(let i=0;i<d.data.length;i+=4){const n=(Math.random()-.5)*22;d.data[i]+=n;d.data[i+1]+=n;d.data[i+2]+=n}g.putImageData(d,0,0)});
-feltTex.repeat.set(10,10);
-const felt=new THREE.Mesh(new THREE.CircleGeometry(24,96),new THREE.MeshStandardMaterial({map:feltTex,roughness:1}));
-felt.rotation.x=-Math.PI/2;felt.receiveShadow=true;scene.add(felt);
-const rim=new THREE.Mesh(new THREE.TorusGeometry(24.6,.9,16,120),new THREE.MeshStandardMaterial({color:0x5a3218,roughness:.45}));
-rim.rotation.x=-Math.PI/2;rim.position.y=.1;rim.receiveShadow=true;scene.add(rim);
-
-/* ---------- one card = a thin rounded slab with a picture on each side ----------
-   Real cards are 63 x 88 mm; here 1 unit = 25 mm, so a card is 2.5 x 3.5 units and 0.012 thick. */
-const CW=2.5,CH=3.5,CR=.14,CT=.012;
-const outline=new THREE.Shape();{
-  const x=-CW/2,y=-CH/2;
-  outline.moveTo(x+CR,y);outline.lineTo(x+CW-CR,y);outline.quadraticCurveTo(x+CW,y,x+CW,y+CR);
-  outline.lineTo(x+CW,y+CH-CR);outline.quadraticCurveTo(x+CW,y+CH,x+CW-CR,y+CH);
-  outline.lineTo(x+CR,y+CH);outline.quadraticCurveTo(x,y+CH,x,y+CH-CR);
-  outline.lineTo(x,y+CR);outline.quadraticCurveTo(x,y,x+CR,y);
-}
-// the flat picture surface: stretch the image so its corners meet the card's corners
-const faceGeo=new THREE.ShapeGeometry(outline,6);{
-  const p=faceGeo.attributes.position,uv=faceGeo.attributes.uv;
-  for(let i=0;i<p.count;i++)uv.setXY(i,p.getX(i)/CW+.5,p.getY(i)/CH+.5);
-}
-faceGeo.translate(0,0,CT/2);
-const backGeo=faceGeo.clone().rotateY(Math.PI);                                  // same surface, turned to face the other way
-const edgeGeo=new THREE.ExtrudeGeometry(outline,{depth:CT,bevelEnabled:false,curveSegments:6}).translate(0,0,-CT/2);
-const edgeMat=[new THREE.MeshBasicMaterial({visible:false}),new THREE.MeshStandardMaterial({color:0xefeadd,roughness:.6})];
-
-const maxAniso=renderer.capabilities.getMaxAnisotropy();
-const picture=canvas=>{const t=new THREE.CanvasTexture(canvas);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=maxAniso;return t};
-const backMat=new THREE.MeshStandardMaterial({map:picture(CardArt.canvas(null,null,512)),roughness:.35});
-
-await CardArt.ready; // wait for the court card pictures to load
-const cards=[];
-for(const suit of CardArt.SUITS)for(const rank of CardArt.RANKS){
-  const card=new THREE.Group();
-  const face=new THREE.Mesh(faceGeo,new THREE.MeshStandardMaterial({map:picture(CardArt.canvas(rank,suit,360)),roughness:.35}));
-  const back=new THREE.Mesh(backGeo,backMat),edge=new THREE.Mesh(edgeGeo,edgeMat);
-  for(const m of[face,back,edge]){m.castShadow=m.receiveShadow=true;m.userData.card=card;card.add(m)}
-  card.userData={rank,suit,faceUp:false,name:rank+suit};
-  scene.add(card);cards.push(card);
-}
-
-/* ---------- placing a card: where it sits, which way it points, and whether it is face up ---------- */
-const flat=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-Math.PI/2); // lie down on the table, picture up
-const flip=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI);   // turn over along the long side
-const UP=new THREE.Vector3(0,1,0);
-function pose(turn,faceUp){
-  const q=new THREE.Quaternion().setFromAxisAngle(UP,turn).multiply(flat);
-  return faceUp?q:q.multiply(flip);
-}
-
-/* ---------- animation: a tiny "tween" helper that changes values a little every frame ---------- */
-const tweens=[];
-const tween=(dur,delay,step)=>new Promise(done=>tweens.push({t:-delay,dur,step,done}));
-const smooth=p=>p*p*(3-2*p);
-// glide a card to a spot; it hops up on the way (higher when it turns over, so it clears the table)
-function move(card,x,y,z,turn,faceUp,{dur=.45,delay=0,hop=.25}={}){
-  const fromP=card.position.clone(),toP=new THREE.Vector3(x,y,z),fromQ=card.quaternion.clone(),toQ=pose(turn,faceUp);
-  if(faceUp!==card.userData.faceUp)hop=Math.max(hop,1.5);
-  card.userData.faceUp=faceUp;
-  return tween(dur,delay,p=>{const k=smooth(p);card.position.lerpVectors(fromP,toP,k).y+=Math.sin(p*Math.PI)*hop;card.quaternion.slerpQuaternions(fromQ,toQ,k)});
-}
-const wait=s=>tween(0,s,()=>{});
-
-/* ---------- camera framing: back off until a width x depth area fits the screen ---------- */
-let view3d={w:9,d:8,z:0};
-function frame(w,d,z=0,dur=.8){
-  view3d={w,d,z};
-  const vt=Math.tan(camera.fov*Math.PI/360),dist=Math.max(w/2/(vt*camera.aspect),d/2/vt)*1.05+3;
-  const fromP=camera.position.clone(),fromT=controls.target.clone(),toT=new THREE.Vector3(0,0,z);
-  const toP=new THREE.Vector3().setFromSphericalCoords(dist,.6,0).add(toT);
-  if(!dur){camera.position.copy(toP);controls.target.copy(toT);return}
-  tween(dur,0,p=>{const k=smooth(p);camera.position.lerpVectors(fromP,toP,k);controls.target.lerpVectors(fromT,toT,k)});
-}
-
-/* ---------- deck order, shuffling and the table layouts ---------- */
-let order=[...cards]; // order[0] is the bottom card of the deck
-const jitter=()=>(Math.random()-.5)*.04;
-const stackSpot=i=>[jitter(),CT/2+i*CT*1.02,jitter(),jitter()];
-
-function gather(dur=.5){
-  frame(9,8);
-  return Promise.all(order.map((c,i)=>{const[x,y,z,r]=stackSpot(i);return move(c,x,y,z,r,false,{dur,delay:i*.008,hop:.4})}));
-}
-// shuffle: split the deck into two piles, then riffle them back together in a new random order
-async function shuffle(){
-  await gather(.35);
-  const half=order.length/2;
-  await Promise.all(order.map((c,i)=>{const left=i<half,j=left?i:i-half;return move(c,left?-1.7:1.7,CT/2+j*CT*1.02,0,left?.12:-.12,false,{dur:.35,hop:.3})}));
-  for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]]} // Fisher-Yates shuffle
-  await Promise.all(order.map((c,i)=>{const[x,y,z,r]=stackSpot(i);return move(c,x,y,z,r,false,{dur:.22,delay:i*.02,hop:.15})}));
-}
-// deal the top five cards in a row toward the viewer, then turn them over one by one
-async function deal(){
-  await gather(.35);
-  frame(16,14,2.2);
-  const hand=order.slice(-5).reverse();
-  await Promise.all(hand.map((c,i)=>move(c,(i-2)*2.9,CT/2,5,0,false,{dur:.5,delay:i*.18,hop:.6})));
-  for(const c of hand){await move(c,c.position.x,CT/2,5,0,true,{dur:.4});}
-}
-// a hand fan: the whole deck face up in an arc, each card pivoting around a point below the fan
-async function fan(){
-  frame(19,13,1);
-  const n=order.length,spread=2.3;
-  await Promise.all(order.map((c,i)=>{const a=(i/(n-1)-.5)*spread,r=7;
-    return move(c,Math.sin(a)*r,CT/2+i*CT*1.02,4-Math.cos(a)*r,-a,true,{dur:.6,delay:i*.012,hop:.5})}));
-}
-// every card face up in suit order, 13 across and 4 down
-async function grid(){
-  frame(13*2.75,4*3.85);
-  await Promise.all(cards.map((c,i)=>move(c,(i%13-6)*2.75,CT/2,(Math.floor(i/13)-1.5)*3.85,0,true,{dur:.6,delay:i*.012,hop:.6})));
-}
-// turn a single card over where it lies
-function turnOver(c){
-  const p=c.position,turn=new THREE.Euler().setFromQuaternion(c.quaternion,"YXZ").y;
-  return move(c,p.x,p.y,p.z,turn,!c.userData.faceUp,{dur:.45});
-}
-
-/* ---------- buttons: one action at a time ---------- */
-let busy=false;
-const buttons=[...document.querySelectorAll("#bar button")];
-const run=f=>async()=>{if(busy)return;busy=true;buttons.forEach(b=>b.disabled=true);try{await f()}finally{busy=false;buttons.forEach(b=>b.disabled=false)}};
+const T=await Table.create(THREE,{OrbitControls,RoomEnvironment},document.getElementById("view"));
+const {cards,order,CT,move,wait,tween}=T;
 const $=id=>document.getElementById(id);
-$("shuffle").onclick=run(shuffle);$("deal").onclick=run(deal);$("fan").onclick=run(fan);$("grid").onclick=run(grid);$("gather").onclick=run(()=>gather());
 
-/* ---------- tapping a card: find what is under the finger with a "ray" shot from the camera ---------- */
-const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let down=null;
-renderer.domElement.addEventListener("pointerdown",e=>down={x:e.clientX,y:e.clientY});
-renderer.domElement.addEventListener("pointerup",e=>{
-  if(!down||Math.hypot(e.clientX-down.x,e.clientY-down.y)>8||busy)return down=null;
-  down=null;
-  const r=renderer.domElement.getBoundingClientRect();
-  pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);
-  ray.setFromCamera(pointer,camera);
-  const hit=ray.intersectObjects(cards,true)[0];
-  if(hit)turnOver(hit.object.userData.card);
-});
+/* ---------- where things sit on the table ---------- */
+Object.assign(T.deckAt,{x:-4.6,z:-2.2});    // the deck, back left
+const DISCARD={x:4.6,z:-2.2};               // used cards, back right
+const TARGET={x:0,z:-2.2};                  // the target number, back centre
+const slotX=i=>(i-2)*2.9;                   // the five hand spots, in a row at the front
+const HAND_Z=3.4,PICKED_Z=1.7;              // picked cards slide forward, toward the target
+T.frame(15,12,1.4,0);                       // aim the camera so this 15 x 12 area fills the screen (leaving room for the panel)
 
-/* ---------- keep the picture sized to the window, and draw every frame ---------- */
-function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();frame(view3d.w,view3d.d,view3d.z,0)}
-addEventListener("resize",resize);resize();
+/* ---------- the target number: a round red-and-gold token with the number painted on top ---------- */
+const tokenCanvas=document.createElement("canvas");tokenCanvas.width=tokenCanvas.height=512;
+const tokenTex=new THREE.CanvasTexture(tokenCanvas);tokenTex.colorSpace=THREE.SRGBColorSpace;
+function paintToken(n){
+  const g=tokenCanvas.getContext("2d"),c=256;
+  g.clearRect(0,0,512,512);
+  g.fillStyle="#c9a24a";g.beginPath();g.arc(c,c,256,0,7);g.fill();                // gold rim
+  const red=g.createRadialGradient(c,c-60,20,c,c,230);red.addColorStop(0,"#b3202f");red.addColorStop(1,"#5e0c16");
+  g.fillStyle=red;g.beginPath();g.arc(c,c,226,0,7);g.fill();                        // red centre
+  g.strokeStyle="#e6c36a";g.lineWidth=5;g.beginPath();g.arc(c,c,206,0,7);g.stroke();// thin inner ring
+  g.fillStyle="#f4dc94";g.textAlign="center";g.textBaseline="middle";
+  g.font="600 40px Georgia,serif";g.fillText("TARGET",c,c-128);
+  g.font="700 220px Georgia,serif";g.fillText(n,c,c+24);
+  tokenTex.needsUpdate=true;
+}
+const brass=new THREE.MeshStandardMaterial({color:0xc9a24a,metalness:.8,roughness:.35});
+const token=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,.16,64),[brass,new THREE.MeshStandardMaterial({map:tokenTex,roughness:.5,metalness:.2}),brass]);
+token.castShadow=token.receiveShadow=true; // the top face of the cylinder carries the picture
+const FACING=Math.PI/2; // turn the token so its writing reads the right way up from your seat
+token.position.set(TARGET.x,.08,TARGET.z);token.scale.setScalar(.001);T.scene.add(token);
+// pop up: grow from nothing while spinning once
+function showToken(n){
+  paintToken(n);
+  return tween(.7,0,p=>{const k=T.smooth(p);token.scale.setScalar(Math.max(.001,k));token.rotation.y=FACING+(1-k)*Math.PI*2;token.position.y=.08+Math.sin(p*Math.PI)*1.2});
+}
+function hideToken(){
+  const s=token.scale.x;
+  return tween(.3,0,p=>token.scale.setScalar(Math.max(.001,s*(1-p))));
+}
 
-const clock=new THREE.Clock();
-renderer.setAnimationLoop(()=>{
-  const dt=Math.min(clock.getDelta(),.05);
-  for(let i=tweens.length-1;i>=0;i--){const w=tweens[i];w.t+=dt;if(w.t<0)continue;const p=w.dur?Math.min(1,w.t/w.dur):1;w.step(p);if(p>=1){tweens.splice(i,1);w.done()}}
-  controls.update();renderer.render(scene,camera);
-});
+/* ---------- the game's memory ("state") ---------- */
+const game={round:0,score:0,target:0,hand:[],picked:new Set(),discard:[],phase:"busy"};
+// phase: "busy" while things animate, "pick" while the player chooses, "result" after a play, "over" at the end
+const valueOf=c=>Rules.value(c.userData.rank);
+const pickedCards=()=>game.hand.filter(c=>game.picked.has(c)); // in left-to-right order
+let bestEver=0;try{bestEver=+localStorage.getItem("dragonDeckBest")||0}catch{}
 
-// start with the deck stacked in the middle of the table
-order.forEach((c,i)=>{const[x,y,z,r]=stackSpot(i);c.position.set(x,y,z);c.quaternion.copy(pose(r,false))});
-window.__deck={shuffle,deal,fan,grid,gather,get busy(){return busy},run}; // hooks for automated screenshots
+/* ---------- the screen text and buttons ---------- */
+function show(status,detail="",bad=false){$("status").textContent=status;$("detail").textContent=detail;$("status").classList.toggle("bad",bad)}
+function showButtons({play=false,clear=false,next=null}){
+  $("play").hidden=$("clear").hidden=!!next;$("next").hidden=!next;
+  $("play").disabled=!play;$("clear").disabled=!clear;
+  if(next)$("next").textContent=next;
+}
+function showTally(){$("round").textContent=`Round ${Math.max(1,game.round)} of ${Rules.ROUNDS}`;$("score").textContent=game.score}
+// while picking: show the sum so far and whether it can be played
+function showPicking(){
+  const vals=pickedCards().map(valueOf),r=Rules.score(game.target,vals);
+  showButtons({play:r.valid,clear:vals.length>0});
+  if(!vals.length)return show(`Make ${game.target} or just under`,`Tap 2 to 5 cards. More cards = more points.`);
+  const sum=`${vals.join(" + ")} = ${r.sum}`;
+  if(r.gap<0)return show(sum,`Over by ${-r.gap}. Take a card out.`,true);
+  if(vals.length<Rules.MIN_CARDS)return show(sum,"Pick at least one more card");
+  show(sum,`${r.gap?r.gap+" short":"Exact!"} · ${r.cards} cards ×${r.mult} → ${r.points} points`);
+}
+
+/* ---------- moving cards around ---------- */
+function placeHandCard(c,{dur=.25}={}){
+  const i=game.hand.indexOf(c),up=game.picked.has(c);
+  c.userData.face.material.emissive.setHex(up?0x3a2a00:0x000000); // a faint gold glow on picked cards
+  return move(c,slotX(i),CT/2,up?PICKED_Z:HAND_Z,0,true,{dur,hop:.2});
+}
+async function dealHand(){
+  game.hand=order.splice(-Rules.HAND).reverse(); // take the top five cards off the deck
+  await Promise.all(game.hand.map((c,i)=>move(c,slotX(i),CT/2,HAND_Z,0,false,{dur:.5,delay:i*.15,hop:.6})));
+  for(const c of game.hand)await move(c,c.position.x,CT/2,HAND_Z,0,true,{dur:.35});
+}
+function discardHand(){
+  const moving=game.hand.map((c,i)=>{
+    c.userData.face.material.emissive.setHex(0);
+    const n=game.discard.push(c)-1;
+    return move(c,DISCARD.x+(Math.random()-.5)*.3,CT/2+n*CT*1.02,DISCARD.z+(Math.random()-.5)*.3,(Math.random()-.5)*.5,true,{dur:.45,delay:i*.06,hop:.5});
+  });
+  game.hand=[];game.picked.clear();
+  return Promise.all(moving);
+}
+
+/* ---------- the game loop: new game → rounds (deal, pick, score) → final score ---------- */
+async function newGame(){
+  game.phase="busy";showButtons({});show("Shuffling…");
+  game.round=0;game.score=0;showTally();
+  await hideToken();
+  order.length=0;order.push(...cards);game.discard=[];game.hand=[];game.picked.clear(); // every card back in the deck
+  for(const c of cards)c.userData.face.material.emissive.setHex(0);
+  await T.shuffle();
+  await nextRound();
+}
+async function nextRound(){
+  game.phase="busy";showButtons({});
+  if(game.hand.length)await Promise.all([discardHand(),hideToken()]);
+  game.round++;showTally();
+  // peek at the next five cards to choose a target that can be reached, then show the target before dealing
+  const coming=order.slice(-Rules.HAND).map(valueOf);
+  game.target=Rules.makeTarget(coming);
+  show("Your target…");
+  await showToken(game.target);
+  await wait(.25);
+  await dealHand();
+  game.phase="pick";showPicking();
+}
+function togglePick(c){
+  if(game.phase!=="pick"||!game.hand.includes(c))return;
+  if(game.picked.has(c))game.picked.delete(c);else game.picked.add(c);
+  placeHandCard(c);showPicking();
+}
+async function play(){
+  const vals=pickedCards().map(valueOf),r=Rules.score(game.target,vals);
+  if(game.phase!=="pick"||!r.valid)return;
+  game.phase="busy";showButtons({});
+  // unpicked cards slide back and turn over, so the scoring cards stand out
+  await Promise.all(game.hand.filter(c=>!game.picked.has(c)).map(c=>move(c,c.position.x,CT/2,HAND_Z+.4,0,false,{dur:.4})));
+  game.score+=r.points;showTally();
+  const best=Rules.best(game.target,game.hand.map(valueOf));
+  const how=`${r.exact?"Exact!":r.gap+" short:"} ${r.close} × ${r.mult} (${r.cards} cards) = ${r.points} points`;
+  const beat=r.points>=best.points?"That was the best possible play!":`Best possible: ${best.pick.map(i=>valueOf(game.hand[i])).join(" + ")} = ${best.sum} for ${best.points}`;
+  show(how,beat);
+  game.phase="result";
+  showButtons({next:game.round<Rules.ROUNDS?"Next round":"Final score"});
+}
+async function finish(){
+  game.phase="busy";showButtons({});
+  await Promise.all([discardHand(),hideToken()]);
+  const record=game.score>bestEver;
+  if(record){bestEver=game.score;try{localStorage.setItem("dragonDeckBest",bestEver)}catch{}}
+  show(`Final score: ${game.score}`,record?"A new best!":`Your best: ${bestEver}`);
+  game.phase="over";showButtons({next:"Play again"});
+}
+
+/* ---------- hooking up taps and buttons ---------- */
+T.onTap(togglePick);
+$("play").onclick=play;
+$("clear").onclick=()=>{if(game.phase!=="pick")return;const was=pickedCards();game.picked.clear();was.forEach(c=>placeHandCard(c));showPicking()};
+$("next").onclick=()=>{if(game.phase==="result")game.round<Rules.ROUNDS?nextRound():finish();else if(game.phase==="over")newGame()};
+
+window.__game={game,togglePick,play,next:()=>$("next").click()}; // hooks for automated testing and screenshots
+newGame();
 </script>
 </body>
 </html>

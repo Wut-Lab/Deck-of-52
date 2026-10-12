@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deck Sandbox</title>
+<style>
+:root{--bg:#18261d;--ink:#f3f1ea;--panel:rgba(20,30,24,.78);--accent:#9b1b27}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,sans-serif}
+#view{position:fixed;inset:0;touch-action:none}
+#hud{position:fixed;top:12px;left:16px;right:16px;pointer-events:none}
+h1{margin:0;font:600 20px Georgia,serif;letter-spacing:.02em}
+#hint{margin:2px 0 0;opacity:.75;font-size:14px}
+#bar{position:fixed;left:16px;right:16px;bottom:16px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+button{font:inherit;padding:9px 15px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:var(--panel);color:var(--ink);cursor:pointer;backdrop-filter:blur(4px)}
+button.pri{background:var(--accent);border-color:transparent}
+button:disabled{opacity:.45;cursor:default}
+</style>
+</head>
+<body>
+<div id="view"></div>
+<header id="hud"><h1>Deck Sandbox</h1><p id="hint">Tap any card to flip it · drag to look around</p></header>
+<div id="bar">
+ <button id="shuffle" class="pri">Shuffle</button>
+ <button id="deal">Deal 5</button>
+ <button id="fan">Fan</button>
+ <button id="grid">Show all</button>
+ <button id="gather">Gather</button>
+</div>
+<!-- 1. the card artwork: court card pictures, then the 2D drawing code -->
+<script src="artwork.js"></script>
+<script src="cardArt.js"></script>
+<script src="table.js"></script>
+<!-- 2. where to download three.js, the 3D library -->
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+<!-- 3. the sandbox: buttons that move the deck around -->
+<script type="module">
+import * as THREE from "three";
+import {OrbitControls} from "three/addons/controls/OrbitControls.js";
+import {RoomEnvironment} from "three/addons/environments/RoomEnvironment.js";
+
+const T=await Table.create(THREE,{OrbitControls,RoomEnvironment},document.getElementById("view"));
+const {cards,order,CT,move,frame}=T;
+
+/* ---------- the table layouts ---------- */
+function gather(dur){frame(9,8);return T.gather(dur)}
+async function shuffle(){frame(9,8);await T.shuffle()}
+// deal the top five cards in a row toward the viewer, then turn them over one by one
+async function deal(){
+  await gather(.35);
+  frame(16,14,2.2);
+  const hand=order.slice(-5).reverse();
+  await Promise.all(hand.map((c,i)=>move(c,(i-2)*2.9,CT/2,5,0,false,{dur:.5,delay:i*.18,hop:.6})));
+  for(const c of hand){await move(c,c.position.x,CT/2,5,0,true,{dur:.4});}
+}
+// a hand fan: the whole deck face up in an arc, each card pivoting around a point below the fan
+async function fan(){
+  frame(19,13,1);
+  const n=order.length,spread=2.3;
+  await Promise.all(order.map((c,i)=>{const a=(i/(n-1)-.5)*spread,r=7;
+    return move(c,Math.sin(a)*r,CT/2+i*CT*1.02,4-Math.cos(a)*r,-a,true,{dur:.6,delay:i*.012,hop:.5})}));
+}
+// every card face up in suit order, 13 across and 4 down
+async function grid(){
+  frame(13*2.75,4*3.85);
+  await Promise.all(cards.map((c,i)=>move(c,(i%13-6)*2.75,CT/2,(Math.floor(i/13)-1.5)*3.85,0,true,{dur:.6,delay:i*.012,hop:.6})));
+}
+
+/* ---------- buttons: one action at a time ---------- */
+let busy=false;
+const buttons=[...document.querySelectorAll("#bar button")];
+const run=f=>async()=>{if(busy)return;busy=true;buttons.forEach(b=>b.disabled=true);try{await f()}finally{busy=false;buttons.forEach(b=>b.disabled=false)}};
+const $=id=>document.getElementById(id);
+$("shuffle").onclick=run(shuffle);$("deal").onclick=run(deal);$("fan").onclick=run(fan);$("grid").onclick=run(grid);$("gather").onclick=run(()=>gather());
+T.onTap(c=>{if(!busy&&c.userData.rank)T.turnOver(c)}); // tap a card to flip it
+
+frame(9,8,0,0);
+window.__deck={shuffle,deal,fan,grid,gather,get busy(){return busy},run}; // hooks for automated screenshots
+</script>
+</body>
+</html>
